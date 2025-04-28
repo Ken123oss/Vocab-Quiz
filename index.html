@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vocab Sprint - Super Clean Version</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #eef2f7;
+      text-align: center;
+      padding: 40px 20px;
+      margin: 0;
+    }
+    h1 {
+      font-size: 4em;
+      color: #222;
+      margin-bottom: 20px;
+    }
+    #word {
+      font-size: 3em;
+      margin: 30px 0;
+      color: #333;
+    }
+    .button-group {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin: 30px 0;
+    }
+    button {
+      font-size: 1.5em;
+      padding: 14px 28px;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+      min-width: 250px;
+    }
+    button:hover {
+      background-color: #1976D2;
+    }
+    #options .option-button {
+      background-color: #4CAF50;
+    }
+    #options .option-button:hover {
+      background-color: #45a049;
+    }
+    #result, #score, #timer, #meaning, #example, #final-result {
+      font-size: 1.8em;
+      margin: 20px;
+      color: #333;
+    }
+    #meaning, #example {
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 2px 2px 10px rgba(0,0,0,0.15);
+      padding: 20px;
+      width: 80%;
+      text-align: left;
+      margin: 20px auto;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Vocab Sprint</h1>
+
+<div id="title-screen" class="button-group">
+  <button onclick="showPlayMenu()">Play</button>
+  <button onclick="showWordList()">Word List</button>
+</div>
+
+<!-- (続くよ！！次でゲーム画面・学習画面・スクリプト貼る！！！) -->
+<div id="home" style="display:none;" class="button-group">
+  <button onclick="selectLevel('easy')">Easy</button>
+  <button onclick="selectLevel('medium')">Medium</button>
+  <button onclick="selectLevel('hard')">Hard</button>
+  <button onclick="selectLevel('impossible')">Impossible</button>
+  <button onclick="returnTitle()">Back to Title</button>
+</div>
+
+<div id="time-select" style="display:none;" class="button-group">
+  <button onclick="startGame(0)">No Limit</button>
+  <button onclick="startGame(30)">30 seconds</button>
+  <button onclick="startGame(60)">60 seconds</button>
+  <button onclick="startGame(90)">90 seconds</button>
+  <button onclick="returnHome()">Back</button>
+</div>
+
+<div id="game" style="display:none;">
+  <p id="timer">Time Left: 60</p>
+  <p id="word"></p>
+  <div id="options" class="button-group"></div>
+  <p id="result"></p>
+  <p id="meaning"></p>
+  <p id="example"></p>
+  <button id="next-button" onclick="pickWord()" style="display:none;">Next Question</button>
+  <p id="score">Score: 0</p>
+  <button onclick="returnHome()">Back to Home</button>
+</div>
+
+<div id="word-list" style="display:none;">
+  <h2>Word List - Study Mode</h2>
+  <input type="text" id="search-bar" placeholder="Search words..." onkeyup="filterWords()" style="padding:10px; font-size:1.2em; width:70%; margin:20px auto; display:block;">
+  <table>
+    <thead>
+      <tr>
+        <th>Word</th>
+        <th>Meaning (Japanese)</th>
+        <th>Example (Japanese)</th>
+      </tr>
+    </thead>
+    <tbody id="word-table"></tbody>
+  </table>
+  <button onclick="returnTitle()">Back to Title</button>
+</div>
+
+<div id="final-result" style="display:none;">
+  <h2 id="final-score"></h2>
+  <h3 id="comment"></h3>
+  <button onclick="restartGame()">Play Again!</button>
+  <button onclick="studyMistakes()">Review Mistakes!</button>
+  <button onclick="returnHome()">Back to Home</button>
+</div>
+
+<script src="words.js"></script>
+<script>
+let currentWord = {};
+let score = 0;
+let levelWords = [];
+let timeLeft = 0;
+let timerInterval = null;
+let totalQuestions = 0;
+let timeMode = false;
+let mistakeList = [];
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function showPlayMenu() {
+  document.getElementById("title-screen").style.display = "none";
+  document.getElementById("home").style.display = "flex";
+  document.getElementById("home").style.flexDirection = "column";
+  document.getElementById("home").style.alignItems = "center";
+}
+
+function showWordList() {
+  document.getElementById("title-screen").style.display = "none";
+  document.getElementById("word-list").style.display = "block";
+
+  const tbody = document.getElementById("word-table");
+  tbody.innerHTML = "";
+  words.forEach(word => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${word.english}</td>
+      <td>${word.meanings.join(', ')}</td>
+      <td>${word.examples.join('<br>')}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function filterWords() {
+  const input = document.getElementById("search-bar").value.toLowerCase();
+  const rows = document.querySelectorAll("#word-table tr");
+  rows.forEach(row => {
+    const text = row.innerText.toLowerCase();
+    row.style.display = text.includes(input) ? "" : "none";
+  });
+}
+
+function selectLevel(level) {
+  levelWords = words.filter(word => word.level === level);
+  if (levelWords.length === 0) {
+    alert("No words available for this level.");
+    return;
+  }
+  document.getElementById("home").style.display = "none";
+  document.getElementById("time-select").style.display = "flex";
+  document.getElementById("time-select").style.flexDirection = "column";
+  document.getElementById("time-select").style.alignItems = "center";
+}
+
+function startGame(selectedTime) {
+  score = 0;
+  totalQuestions = 0;
+  mistakeList = [];
+  document.getElementById("time-select").style.display = "none";
+  document.getElementById("game").style.display = "block";
+  document.getElementById("score").innerText = `Score: ${score}`;
+  if (selectedTime > 0) {
+    timeLeft = selectedTime;
+    timeMode = true;
+    document.getElementById("timer").style.display = "block";
+    document.getElementById("timer").innerText = `Time Left: ${timeLeft}`;
+    timerInterval = setInterval(countDown, 1000);
+  } else {
+    timeMode = false;
+    document.getElementById("timer").style.display = "none";
+  }
+  pickWord();
+}
+
+function countDown() {
+  timeLeft--;
+  document.getElementById("timer").innerText = `Time Left: ${timeLeft}`;
+  if (timeLeft <= 0) {
+    clearInterval(timerInterval);
+    endGame();
+  }
+}
+
+function endGame() {
+  document.getElementById("game").style.display = "none";
+  document.getElementById("final-result").style.display = "block";
+
+  const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+  document.getElementById("final-score").innerText = `Score: ${score} / ${totalQuestions} (${percentage}%)`;
+
+  let comment = "";
+  if (percentage === 100) {
+    comment = "Excellent!";
+  } else if (percentage >= 51) {
+    comment = "Good Job!";
+  } else if (percentage >= 21) {
+    comment = "Well Done!";
+  } else {
+    comment = "Nice Try!";
+  }
+  document.getElementById("comment").innerText = comment;
+}
+
+function pickWord() {
+  document.getElementById("next-button").style.display = "none";
+
+  if (timeMode && timeLeft > 0) {
+    clearInterval(timerInterval);
+    timerInterval = setInterval(countDown, 1000);
+  }
+
+  const randomIndex = Math.floor(Math.random() * levelWords.length);
+  currentWord = levelWords[randomIndex];
+  document.getElementById("word").innerText = currentWord.english;
+
+  const optionsDiv = document.getElementById("options");
+  optionsDiv.innerHTML = "";
+
+  const options = [currentWord.meanings[0]];
+  while (options.length < 4) {
+    const randomWord = levelWords[Math.floor(Math.random() * levelWords.length)];
+    const randomMeaning = randomWord.meanings[0];
+    if (!options.includes(randomMeaning)) {
+      options.push(randomMeaning);
+    }
+  }
+
+  shuffle(options);
+
+  options.forEach(option => {
+    const button = document.createElement("button");
+    button.className = "option-button";
+    button.innerText = option;
+    button.onclick = () => checkAnswer(button, option);
+    optionsDiv.appendChild(button);
+  });
+
+  document.getElementById("meaning").innerText = "";
+  document.getElementById("example").innerText = "";
+  document.getElementById("result").innerText = "";
+}
+
+function checkAnswer(clickedButton, selected) {
+  const buttons = document.querySelectorAll("#options button");
+  buttons.forEach(button => {
+    button.disabled = true;
+    if (button.innerText === currentWord.meanings[0]) {
+      button.style.backgroundColor = "#4CAF50"; // Correct
+    } else {
+      button.style.backgroundColor = "#f44336"; // Wrong
+    }
+  });
+
+  const result = document.getElementById("result");
+  const meaning = document.getElementById("meaning");
+  const example = document.getElementById("example");
+
+  if (currentWord.meanings.includes(selected)) {
+    result.innerText = "Correct! 🎯";
+    score++;
+  } else {
+    result.innerText = `Wrong... Correct answer: ${currentWord.meanings.join(', ')}`;
+    mistakeList.push(currentWord);
+  }
+
+  meaning.innerText = `Meaning:\n${currentWord.meanings.join(', ')}`;
+  example.innerText = `Example:\n${currentWord.examples.join('\n')}`;
+  document.getElementById("score").innerText = `Score: ${score}`;
+
+  totalQuestions++;
+  if (timeMode) {
+    clearInterval(timerInterval);
+    timeLeft -= 2;
+    if (timeLeft <= 0) {
+      endGame();
+      return;
+    }
+  }
+  document.getElementById("next-button").style.display = "inline-block";
+}
+
+function restartGame() {
+  location.reload();
+}
+
+function studyMistakes() {
+  if (mistakeList.length === 0) {
+    alert("No mistakes to review!");
+    return;
+  }
+  levelWords = [...mistakeList];
+  score = 0;
+  totalQuestions = 0;
+  document.getElementById("final-result").style.display = "none";
+  document.getElementById("game").style.display = "block";
+  pickWord();
+}
+
+function returnHome() {
+  document.getElementById("game").style.display = "none";
+  document.getElementById("final-result").style.display = "none";
+  document.getElementById("home").style.display = "flex";
+  document.getElementById("home").style.flexDirection = "column";
+  document.getElementById("home").style.alignItems = "center";
+}
+
+function returnTitle() {
+  location.reload();
+}
+
+document.addEventListener('keydown', function(event) {
+  if (event.key === "Escape") {
+    returnTitle();
+  }
+});
+</script>
+
+</body>
+</html>
